@@ -15,8 +15,7 @@ async function registerForQuiz(req, res, next) {
 
     if (studentID) {
       const student = await Student.findById(studentID);
-      if (!student)
-        return next(new ErrorResponse(`Student with id ${studentID} was not found.`, 404));
+      if (!student) return next(new ErrorResponse(`Student with id ${studentID} was not found.`, 404));
 
       return res.json({
         accessResults: true,
@@ -62,6 +61,14 @@ async function submitQuiz(req, res, next) {
   try {
     const { answers, rollNumber, quizID } = req.body;
     const student = await Student.findOne({ rollNumber, quizID });
+    if (!student) return next(new ErrorResponse(`Student with roll number ${rollNumber} was not found.`, 404));
+
+    const quiz = await Quiz.findById(quizID);
+    if (!quiz) return next(new ErrorResponse(`Quiz with id ${quizID} was not found.`, 404));
+
+    if (!quiz.open) return next(new ErrorResponse(`Quiz is not accepting responses.`, 400));
+    if (student.answers.length !== 0) return next(new ErrorResponse(`Cannot submit twice`, 400));
+
     student.answers = answers;
 
     await student.save();
@@ -86,8 +93,7 @@ async function gradeQueries(req, res, next) {
 
     // Attempt to find student that matches the id provided
     const student = await Student.findById(studentID);
-    if (!student)
-      return next(new ErrorResponse(`Student with id ${studentID} was not found.`, 404));
+    if (!student) return next(new ErrorResponse(`Student with id ${studentID} was not found.`, 404));
 
     // Extract data from each sheet in the excel file
     const workbook = xlsx.read(quiz.database, { type: "buffer" });
@@ -103,9 +109,7 @@ async function gradeQueries(req, res, next) {
     Object.entries(jsonData).forEach(([sheetName, data]) => {
       const columns = Object.keys(data[0]);
       const createTableQuery = `CREATE TABLE ${sheetName} (${columns.join(", ")});`;
-      const insertDataQuery = `INSERT INTO ${sheetName} VALUES (${columns
-        .map(() => "?")
-        .join(", ")});`;
+      const insertDataQuery = `INSERT INTO ${sheetName} VALUES (${columns.map(() => "?").join(", ")});`;
 
       db.serialize(() => {
         db.run(createTableQuery);
@@ -177,8 +181,7 @@ async function getStudentByID(req, res, next) {
   try {
     const studentID = req.params.id;
     const student = await Student.findById(studentID);
-    if (!student)
-      return next(new ErrorResponse(`Student with id ${studentID} was not found.`, 404));
+    if (!student) return next(new ErrorResponse(`Student with id ${studentID} was not found.`, 404));
 
     res.json({
       success: true,
